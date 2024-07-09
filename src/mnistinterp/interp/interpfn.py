@@ -1,3 +1,6 @@
+"""The InterpFn is the trio of functions alpha, beta gamma as used in the Albergo2023
+paper."""
+
 import abc
 
 import torch

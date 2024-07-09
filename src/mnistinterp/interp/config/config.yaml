@@ -1,0 +1,9 @@
+defaults:
+- model: unet
+- optimizer: adamw
+- interpfn: linear
+- lossfn: xsandnoise
+- _self_
+
+
+lr: 1e-3
