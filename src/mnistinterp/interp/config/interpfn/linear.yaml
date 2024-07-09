@@ -1,0 +1,2 @@
+_target_: mnistinterp.interp.interpfn.LinearInterp
+noise_level: 1.0

@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mnistinterp"
+version = "20240709"
+dependencies = [
+    "hydra-core",
+    "omegaconf",
+    "torch>=2.1",
+    "tqdm",
+]
+requires-python = ">=3.11"
+
+[project.optional-dependencies]
+dev = ["ruff"]
+
+[project.scripts]
+minterp_train_classif = "mnistinterp.classif.cli:cli"
+minterp_train_interp = "mnistinterp.interp.cli:cli"
+
+[tool.setuptools.package-data]
+eddie = ["**/*.yaml", "**/*.gz"]
