@@ -8,6 +8,7 @@ version = "20240709"
 dependencies = [
     "einops",
     "hydra-core",
+    "mlflow",
     "omegaconf",
     "torch>=2.1",
     "tqdm",

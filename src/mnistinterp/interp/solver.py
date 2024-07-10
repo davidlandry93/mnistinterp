@@ -1,0 +1,129 @@
+from typing import Callable
+import abc
+
+import tqdm
+import torch
+import torch.nn as nn
+
+from .interpfn import InterpFn
+from .lossfn import LossFn
+
+
+class Solver(abc.ABC):
+    def solve(
+        self,
+        model: nn.Module,
+        interp_fn: InterpFn,
+        loss_fn: LossFn,
+        x0: torch.Tensor,
+        steps: int | torch.Tensor,
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        raise NotImplementedError()
+
+
+class EulerMaruyamaSolver(Solver):
+    def __init__(self, epsilon: float | Callable[[float | torch.Tensor], float] = 1.0):
+        if isinstance(epsilon, (float, int)):
+            self.epsilon_fn = lambda _: epsilon
+        else:
+            self.epsilon_fn = epsilon
+
+    def solve(
+        self,
+        model: nn.Module,
+        interp_fn: InterpFn,
+        loss_fn: LossFn,
+        x0: torch.Tensor,
+        steps: torch.Tensor | int,
+    ) -> tuple[list[torch.Tensor], list[torch.Tensor]]:
+        if isinstance(steps, int):
+            steps = torch.linspace(0.0, 1.0, steps, device=x0.device)
+
+        history = [x0]
+        model_output_history = []
+
+        for i, t in tqdm.tqdm(enumerate(steps[:-1]), desc="Generating"):
+            # # Make t broadcastable on state.
+            # dims = tuple([1] * len(x0.shape))
+            # t = t.reshape(dims)
+            dt = steps[i + 1] - steps[i]
+
+            xt = history[i]
+            model_output = model(xt, t)
+            drift = loss_fn.drift(model_output, interp_fn, t)
+            noise = loss_fn.denoiser(model_output)
+
+            epsilon_t = torch.tensor(self.epsilon_fn(t))
+
+            delta = (
+                drift * dt
+                - (epsilon_t / interp_fn.gamma(t)) * noise * dt
+                + torch.sqrt(2.0 * epsilon_t)
+                * torch.normal(torch.zeros_like(xt), torch.sqrt(dt))
+            )
+
+            history.append(xt + delta)
+            model_output_history.append(model_output)
+
+        return history, model_output_history
+
+
+class HeunMaruyamaSolver(Solver):
+    def __init__(self, epsilon: float | Callable[[float | torch.Tensor], float] = 1.0):
+        if isinstance(epsilon, (float, int)):
+            self.epsilon_fn = lambda _: epsilon
+        else:
+            self.epsilon_fn = epsilon
+
+    def solve(
+        self,
+        model: nn.Module,
+        interp_fn: InterpFn,
+        loss_fn: LossFn,
+        x0: torch.Tensor,
+        steps: torch.Tensor | int,
+    ):
+        if isinstance(steps, int):
+            steps = torch.linspace(0.0, 1.0, steps, device=x0.device)
+
+        history = [x0]
+
+        for i, t in enumerate(steps[:-1]):
+            # # Make t broadcastable on state.
+            # dims = tuple([1] * len(x0.shape))
+            # t = t.reshape(dims)
+            dt = steps[i + 1] - steps[i]
+
+            xt = history[i]
+            model_output = model(xt, t)
+            drift = loss_fn.drift(model_output, interp_fn, t)
+            noise = loss_fn.denoiser(model_output)
+
+            epsilon_t = torch.tensor(self.epsilon_fn(t))
+
+            dx_without_wiener = drift - (epsilon_t / interp_fn.gamma(t)) * noise
+            wiener = torch.sqrt(2.0 * epsilon_t) * torch.normal(
+                torch.zeros_like(xt), torch.sqrt(dt)
+            )
+
+            if i == len(steps) - 2:
+                # Last step.
+                step = dx_without_wiener * dt + wiener
+            else:
+                t_prime = t + dt
+                epsilon_t_prime = self.epsilon_fn(t_prime)
+                xt_prime = (xt + dx_without_wiener) * dt
+
+                model_output_prime = model(xt_prime, t + dt)
+                drift_prime = loss_fn.drift(model_output_prime, interp_fn, t + dt)
+                noise_prime = loss_fn.denoiser(model_output_prime)
+
+                dx_prime = drift_prime - (
+                    epsilon_t_prime / interp_fn.gamma(t + dt) * noise_prime
+                )
+
+                dx = (dx + dx_prime) / 2
+
+                step = dx * dt + wiener
+
+            history.append(xt + step)

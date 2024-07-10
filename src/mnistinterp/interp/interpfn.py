@@ -28,6 +28,10 @@ class InterpFn(abc.ABC):
     def __call__(
         self, x0: torch.Tensor, x1: torch.Tensor, z: torch.Tensor, t: torch.Tensor
     ) -> torch.Tensor:
+        # Reshape t so that it broadcasts with x0, x1, etc.
+        batch_size = t.shape[0]
+        t = t.reshape(batch_size, 1, 1, 1)
+
         return self.alpha(t) * x0 + self.beta(t) * x1 + self.gamma(t) * z
 
 

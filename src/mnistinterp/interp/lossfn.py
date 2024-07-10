@@ -10,56 +10,94 @@ import abc
 import torch
 
 
-class StochasticInterpolationLoss(abc.ABC):
-    def loss(self, x0, x1, z, t, nn_output: torch.Tensor) -> torch.Tensor:
+from .interpfn import InterpFn
+
+
+class LossFn(abc.ABC):
+    def __call__(
+        self, nn_output: torch.Tensor, x0, x1, z, t, interpfn: InterpFn
+    ) -> torch.Tensor:
         raise NotImplementedError()
 
     @property
-    @abc.abstractmethod
     def n_targets(self) -> int:
+        return len(self.target_names())
+
+    @abc.abstractmethod
+    def target_names(self) -> tuple[str, ...]:
+        raise NotImplementedError()
+
+    def drift(self, model_output: torch.Tensor, interp_fn: InterpFn, t: torch.Tensor):
+        raise NotImplementedError()
+
+    def denoiser(self, model_output: torch.Tensor):
         raise NotImplementedError()
 
 
-class DriftDenoiseLoss(StochasticInterpolationLoss):
-    def loss(self, x0, x1, z, t, nn_output: torch.Tensor) -> torch.Tensor:
-        pass
-
-    @property
-    def n_targets(self):
-        return 2
+class DriftDenoiseLoss(LossFn):
+    def __call__(self, x0, x1, z, t, nn_output: torch.Tensor) -> torch.Tensor:
+        raise NotImplementedError()
 
 
-class VelocityDenoiseLoss(StochasticInterpolationLoss):
-    def loss(self, x0, x1, z, t, nn_output: torch.Tensor) -> torch.Tensor:
-        pass
-
-    @property
-    def n_targets(self):
-        return 2
+class VelocityDenoiseLoss(LossFn):
+    def __call__(self, x0, x1, z, t, nn_output: torch.Tensor) -> torch.Tensor:
+        raise NotImplementedError()
 
 
-class DriftScoreLoss(StochasticInterpolationLoss):
-    def loss(self, x0, x1, z, t, nn_output: torch.Tensor) -> torch.Tensor:
-        pass
-
-    @property
-    def n_targets(self):
-        return 2
+class DriftScoreLoss(LossFn):
+    def __call__(self, x0, x1, z, t, nn_output: torch.Tensor) -> torch.Tensor:
+        raise NotImplementedError()
 
 
-class VelocityScoreLoss(StochasticInterpolationLoss):
-    def loss(self, x0, x1, z, t, nn_output: torch.Tensor) -> torch.Tensor:
-        pass
-
-    @property
-    def n_targets(self):
-        return 2
+class VelocityScoreLoss(LossFn):
+    def __call__(self, x0, x1, z, t, nn_output: torch.Tensor) -> torch.Tensor:
+        raise NotImplementedError()
 
 
-class XAndNoiseLoss(StochasticInterpolationLoss):
-    def loss(self, x0, x1, z, t nn_output: torch.Tensor) -> torch.Tensor:
-        pass
+class XXZLoss(LossFn):
+    def __call__(self, nn_output, x0, x1, z, t, interp_fn: InterpFn) -> torch.Tensor:
+        target = torch.concat([x0, x1, z], dim=1)
 
-    @property
-    def n_targets(self):
-        return 3
+        nn_output = torch.concat(
+            [torch.clamp(nn_output[:, :2], -1.0, 1.0), nn_output[:, [2]]], dim=1
+        )
+
+        return torch.square(nn_output - target)
+
+    def target_names(self) -> tuple[str, str, str]:
+        return ("x0", "x1", "z")
+
+    def drift(self, model_output, interp_fn: InterpFn, t: torch.Tensor):
+        x0_hat, x1_hat, z_hat = (
+            model_output[:, [0]],
+            model_output[:, [1]],
+            model_output[:, [2]],
+        )
+
+        drift = (
+            interp_fn.dalpha(t) * x0_hat
+            + interp_fn.dbeta(t) * x1_hat
+            + interp_fn.dgamma(t) * z_hat
+        )
+
+        return drift
+
+    def denoiser(self, model_output):
+        z_hat = model_output[:, [2]]
+
+        return z_hat
+
+
+class X0ZLoss(LossFn):
+    def __call__(self, x0, x1, z, t, nn_output: torch.Tensor) -> torch.Tensor:
+        raise NotImplementedError()
+
+
+class X1ZLoss(LossFn):
+    def __call__(self, x0, x1, z, t, nn_output: torch.Tensor) -> torch.Tensor:
+        raise NotImplementedError()
+
+
+class XXLoss(LossFn):
+    def __call__(self, x0, x1, z, t, nn_output: torch.Tensor) -> torch.Tensor:
+        raise NotImplementedError()

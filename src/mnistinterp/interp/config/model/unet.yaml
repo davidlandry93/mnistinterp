@@ -1,1 +1,1 @@
-_target_: mnistinterp.model.unet.UnetModel
+_target_: mnistinterp.model.unet.UNetModel

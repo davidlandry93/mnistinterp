@@ -5,28 +5,31 @@ from .blocks import UNet
 
 
 class UNetModel(nn.Module):
-    def __init__(self, in_channels=1, n_channels=64, ch_mults=(1, 2, 4, 8)):
+    def __init__(
+        self, in_channels=1, embedding_size=64, ch_mults=(1, 2, 4, 8), out_channels=1
+    ):
         super().__init__()
 
         self.unet = UNet(
             in_dim=in_channels + 2,
-            embed_dim=n_channels,
-            out_dim=1,
+            embed_dim=embedding_size,
+            out_dim=out_channels,
             dim_scales=ch_mults,
         )
 
-    def forward(self, batch):
-        x, t = batch["xt"], batch["t"]
+    def forward(self, xt, t):
+        batch_size, width, height = xt.shape[0], xt.shape[2], xt.shape[3]
 
-        batch_size, width, height = x.shape[0], x.shape[2], x.shape[3]
+        if len(t.shape) == 0:
+            t = t.unsqueeze(0).repeat(batch_size)
 
-        horizontal = torch.linspace(0.0, 1.0, width, device=x.device)
-        vertical = torch.linspace(0.0, 1.0, height, device=x.device)
+        horizontal = torch.linspace(0.0, 1.0, width, device=xt.device)
+        vertical = torch.linspace(0.0, 1.0, height, device=xt.device)
         xx, yy = torch.meshgrid(horizontal, vertical, indexing="ij")
 
         x = torch.concat(
             [
-                x,
+                xt,
                 xx.reshape(1, 1, width, height).repeat(batch_size, 1, 1, 1),
                 yy.reshape(1, 1, width, height).repeat(batch_size, 1, 1, 1),
             ],

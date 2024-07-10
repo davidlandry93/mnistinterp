@@ -1,0 +1,2 @@
+_target_: mnistinterp.interp.config.solver.HeunMaruyamaSolver
+epsilon: 1.0

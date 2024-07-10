@@ -1,5 +1,3 @@
-import random
-
 import torch
 import torch.nn.functional as F
 import torch.utils.data
@@ -18,8 +16,8 @@ class MNISTDataset:
 
         train_images, train_labels = dataset_fn()
 
-        self.images = torch.from_numpy(train_images).float() / 255 - 0.5
-        self.labels = torch.from_numpy(train_labels)
+        self.images = (torch.from_numpy(train_images.copy()).float() / 255) * 2 - 1.0
+        self.labels = torch.from_numpy(train_labels.copy())
 
         mask = torch.ones(self.labels.shape[0], dtype=torch.bool)
         if only_digit is not None:
@@ -41,31 +39,3 @@ class MNISTDataset:
 
     def __len__(self):
         return self.labels.shape[0]
-
-
-class StochasticInterpolationDataset(torch.utils.data.IterableDataset):
-    def __init__(
-        self,
-        x0_dataset: MNISTDataset,
-        x1_dataset: MNISTDataset,
-        n_samples=5000,
-        time_padding=1e-4,
-    ):
-        self.x0_dataset = x0_dataset
-        self.x1_dataset = x1_dataset
-        self.n_samples = n_samples
-        self.time_padding = time_padding
-
-    def __iter__(self):
-        for _ in range(self.n_samples):
-            x0 = self.x0_dataset[random.randint(0, len(self.x0_dataset) - 1)]["image"]
-            x1 = self.x1_dataset[random.randint(0, len(self.x1_dataset) - 1)]["image"]
-            z = torch.normal(mean=torch.zeros_like(x0))
-            t = torch.rand(()) * (1 - 2 * self.time_padding) + self.time_padding
-
-            # Add a fake channel dimension to make convolutions easier later.
-            x0 = x0.unsqueeze(0)
-            x1 = x1.unsqueeze(0)
-            z = z.unsqueeze(0)
-
-            yield {"x0": x0, "x1": x1, "z": z, "t": t}

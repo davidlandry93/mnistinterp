@@ -1,9 +1,41 @@
 defaults:
 - model: unet
 - optimizer: adamw
+- scheduler: onecycle
 - interpfn: linear
-- lossfn: xsandnoise
+- lossfn: xxz
+- solver: euler_maruyama
 - _self_
 
 
+num_workers: ${oc.decode:${oc.env:SLURM_CPUS_PER_TASK,4}}
+limit_train_batches:
+limit_val_batches: 
+
+
 lr: 1e-3
+batch_size: 256
+max_epochs: 100
+n_steps_per_epoch: ${oc.eval:5000 // ${batch_size}}
+
+origin_digit: 3
+destination_digit: 8
+
+n_sampling_steps: 5000
+time_padding: 1e-4
+
+
+mlflow:
+  tracking_uri: sqlite:///${oc.env:WORK}/mnistinterp/mlflow/db.sqlite
+  experiment_name: mnistinterp
+  run_name: mnistinterp
+  artifact_location: ${oc.env:WORK,.}/mnistinterp/mlflow/artifacts
+
+
+hydra:
+  job:
+    chdir: true
+  run:
+    dir: ${oc.env:SCRATCH,"."}/run/${now:%Y-%m-%d}/${now:%H-%M-%S}
+  sweep:
+    dir: ${oc.env:SCRATCH,"."}/multirun/${now:%Y-%m-%d}/${now:%H-%M-%S}
