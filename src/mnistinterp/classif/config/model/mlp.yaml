@@ -1,0 +1,2 @@
+_target_: mnistinterp.classif.model.mlp.MNISTClassifier
+embedding_size: 512

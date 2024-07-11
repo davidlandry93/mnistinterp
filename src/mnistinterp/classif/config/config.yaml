@@ -1,0 +1,27 @@
+defaults: 
+- model: conv
+- _self_
+
+batch_size: 128
+num_workers: ${oc.decode:${oc.env:SLURM_CPUS_PER_TASK,4}}
+
+
+mlflow:
+  tracking_uri: sqlite:///${oc.env:WORK}/mnistinterp/mlflow/db.sqlite
+  experiment_name: mnistinterp_classif
+  run_name: classif
+  artifact_location: ${oc.env:WORK,.}/mnistinterp/mlflow/artifacts
+
+
+lr: 1e-5
+weight_decay: 1e-5
+max_epochs: 100
+
+
+hydra:
+  job:
+    chdir: true
+  run:
+    dir: ${oc.env:SCRATCH,"."}/run/${now:%Y-%m-%d}/${now:%H-%M-%S}
+  sweep:
+    dir: ${oc.env:SCRATCH,"."}/multirun/${now:%Y-%m-%d}/${now:%H-%M-%S}

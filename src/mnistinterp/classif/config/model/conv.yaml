@@ -1,0 +1,4 @@
+_target_: mnistinterp.classif.model.conv.ConvMNISTClassifier
+embedding_size: 512
+kernel_size: 3
+dropout: 0.2

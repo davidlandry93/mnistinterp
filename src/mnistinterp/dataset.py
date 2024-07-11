@@ -4,10 +4,12 @@ import torch.utils.data
 
 from .mnist import mnist_test, mnist_train
 
-VALIDATE_FROM = 4000
+VALIDATE_FROM_SINGLE_DIGIT = 4000
 """There are about 5000 examples per digit, so we can validate from
 index 4000 to the end.
 """
+
+VALIDATE_FROM_ALL_DIGITS = 50_000
 
 
 class MNISTDataset:
@@ -23,10 +25,16 @@ class MNISTDataset:
         if only_digit is not None:
             mask = self.labels == only_digit
 
+        validate_from = (
+            VALIDATE_FROM_SINGLE_DIGIT
+            if only_digit is not None
+            else VALIDATE_FROM_ALL_DIGITS
+        )
+
         if subset == "train":
-            mask[VALIDATE_FROM:] = False
+            mask[validate_from:] = False
         if subset == "val":
-            mask[:VALIDATE_FROM] = False
+            mask[:validate_from] = False
 
         self.images = self.images[mask]
         self.labels = self.labels[mask]

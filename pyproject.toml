@@ -10,6 +10,8 @@ dependencies = [
     "hydra-core",
     "mlflow",
     "omegaconf",
+    "pandas",
+    "seaborn",
     "torch>=2.1",
     "tqdm",
 ]
@@ -19,7 +21,7 @@ requires-python = ">=3.11"
 dev = ["ruff"]
 
 [project.scripts]
-minterp_train_classif = "mnistinterp.classif.cli:cli"
+minterp_train_classif = "mnistinterp.classif.classif_cli:cli"
 minterp_train_interp = "mnistinterp.interp.cli:cli"
 
 [tool.setuptools.package-data]

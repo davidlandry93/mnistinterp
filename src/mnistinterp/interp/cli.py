@@ -12,6 +12,7 @@ import tqdm
 from collections.abc import MutableMapping
 
 from ..dataset import MNISTDataset
+from ..util import get_experiment, params_dict_for_logging
 from .dataset import StochasticInterpolationDataset
 
 from .interpfn import InterpFn
@@ -28,54 +29,18 @@ logger = logging.getLogger(__name__)
 
 
 class TrainingState:
-    def __init__(self, model, optimizer, scheduler):
+    def __init__(
+        self,
+        model: nn.Module,
+        optimizer: torch.optim.Optimizer,
+        scheduler: torch.optim.lr_scheduler.LRScheduler,
+    ):
         self.model = model
         self.optimizer = optimizer
         self.scheduler = scheduler
         self.epoch = 0
         self.step = 0
         self.val_loss_min = torch.inf
-
-
-def get_experiment(cfg: oc.DictConfig):
-    experiment = mlflow.get_experiment_by_name(cfg.mlflow.experiment_name)
-
-    if experiment is None:
-        logger.info(
-            f"Creating experiment {cfg.mlflow.experiment_name} because it did not exist."
-        )
-        experiment_id = mlflow.create_experiment(
-            cfg.mlflow.experiment_name, artifact_location=cfg.mlflow.artifact_location
-        )
-        experiment = mlflow.get_experiment(experiment_id)
-
-    return experiment
-
-
-def flatten_config(dictionary: MutableMapping, parent_key="", separator=".") -> dict:
-    items = []
-    for key, value in dictionary.items():
-        new_key = parent_key + separator + key if parent_key else key
-        if isinstance(value, MutableMapping):
-            items.extend(flatten_config(value, new_key, separator=separator).items())
-        else:
-            items.append((new_key, value))
-    return dict(items)
-
-
-def params_dict_for_logging(cfg: oc.DictConfig):
-    params = flatten_config(dict(cfg))
-
-    new_params = {}
-    for k, v in params.items():
-        if k.endswith("_target_"):
-            new_params[k] = v.split(".")[-1]
-        elif k.startswith("mlflow"):
-            pass
-        else:
-            new_params[k] = v
-
-    return new_params
 
 
 def train(
@@ -95,8 +60,8 @@ def train(
 ):
     state.model.to(device)
 
-    for epoch in range(max_epochs):
-        mlflow.log_metric("epoch", epoch)
+    for _ in range(max_epochs):
+        mlflow.log_metric("epoch", state.epoch, state.step)
         training_loop(
             state,
             interp_fn,
@@ -168,6 +133,7 @@ def training_loop(
             mlflow.log_metric(
                 "Train/loss_step", mean_loss.cpu().item(), step=state.step
             )
+            mlflow.log_metric("LR", state.scheduler.get_last_lr()[0])
 
         state.step += 1
 
