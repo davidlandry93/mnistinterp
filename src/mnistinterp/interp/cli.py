@@ -42,6 +42,25 @@ class TrainingState:
         self.step = 0
         self.val_loss_min = torch.inf
 
+    def to_dict(self):
+        return {
+            "epoch": self.epoch,
+            "step": self.step,
+            "model": self.model.state_dict(),
+            "optimizer": self.optimizer.state_dict(),
+            "scheduler": self.scheduler.state_dict(),
+            "val_loss_min": self.val_loss_min,
+        }
+
+    def load(self, checkpoint):
+        self.epoch = checkpoint["epoch"]
+        self.step = checkpoint["step"]
+        self.val_loss_min = checkpoint["val_loss_min"]
+
+        self.model.load_state_dict(checkpoint["model"])
+        self.scheduler.load_state_dict(checkpoint["scheduler"])
+        self.optimizer.load_state_dict(checkpoint["optimizer"])
+
 
 def train(
     state: TrainingState,
@@ -83,6 +102,12 @@ def train(
             time_padding=time_padding,
         )
         state.epoch += 1
+
+
+def save_checkpoint(state: TrainingState, label: str):
+    fname = f"{label}.ckpt"
+    torch.save(state.to_dict(), fname)
+    mlflow.log_artifact(fname)
 
 
 def training_loop(
@@ -133,7 +158,7 @@ def training_loop(
             mlflow.log_metric(
                 "Train/loss_step", mean_loss.cpu().item(), step=state.step
             )
-            mlflow.log_metric("LR", state.scheduler.get_last_lr()[0])
+            mlflow.log_metric("LR", state.scheduler.get_last_lr()[0], step=state.step)
 
         state.step += 1
 
@@ -150,6 +175,8 @@ def training_loop(
             mean_loss_per_channel[i].item(),
             step=state.step,
         )
+
+    save_checkpoint(state, label="latest")
 
 
 def validation_loop(
@@ -198,6 +225,7 @@ def validation_loop(
 
         if mean_loss_per_channel.mean() < state.val_loss_min:
             state.val_loss_min = mean_loss_per_channel.mean().item()
+            save_checkpoint(state, label="best")
 
         for i, target_label in enumerate(loss_fn.target_names()):
             mlflow.log_metric(
@@ -206,7 +234,7 @@ def validation_loop(
                 step=state.step,
             )
 
-        if state.epoch % 1 == 0:
+        if state.epoch % 2 == 0:
             plot_model_output(state, batch, interp_fn, loss_fn)
             plot_sampling(
                 state,
@@ -372,6 +400,8 @@ def cli(cfg: oc.DictConfig):
 
     try:
         mlflow.log_params(params_dict_for_logging(cfg))
+        mlflow.log_artifacts(".hydra")
+
         train(
             training_state,
             interp_fn,

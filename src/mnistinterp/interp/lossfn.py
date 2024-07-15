@@ -19,6 +19,9 @@ class LossFn(abc.ABC):
     ) -> torch.Tensor:
         raise NotImplementedError()
 
+    def clamp(self, nn_output: torch.Tensor) -> torch.Tensor:
+        return nn_output
+
     @property
     def n_targets(self) -> int:
         return len(self.target_names())
@@ -27,10 +30,16 @@ class LossFn(abc.ABC):
     def target_names(self) -> tuple[str, ...]:
         raise NotImplementedError()
 
-    def drift(self, model_output: torch.Tensor, interp_fn: InterpFn, t: torch.Tensor):
+    def drift(
+        self,
+        xt: torch.Tensor,
+        model_output: torch.Tensor,
+        interp_fn: InterpFn,
+        t: torch.Tensor,
+    ):
         raise NotImplementedError()
 
-    def denoiser(self, model_output: torch.Tensor):
+    def denoiser(self, xt: torch.Tensor, model_output: torch.Tensor):
         raise NotImplementedError()
 
 
@@ -58,16 +67,17 @@ class XXZLoss(LossFn):
     def __call__(self, nn_output, x0, x1, z, t, interp_fn: InterpFn) -> torch.Tensor:
         target = torch.concat([x0, x1, z], dim=1)
 
-        nn_output = torch.concat(
+        return torch.square(nn_output - target)
+
+    def clamp(self, nn_output) -> torch.Tensor:
+        return torch.concat(
             [torch.clamp(nn_output[:, :2], -1.0, 1.0), nn_output[:, [2]]], dim=1
         )
-
-        return torch.square(nn_output - target)
 
     def target_names(self) -> tuple[str, str, str]:
         return ("x0", "x1", "z")
 
-    def drift(self, model_output, interp_fn: InterpFn, t: torch.Tensor):
+    def drift(self, xt, model_output, interp_fn: InterpFn, t: torch.Tensor):
         x0_hat, x1_hat, z_hat = (
             model_output[:, [0]],
             model_output[:, [1]],
@@ -82,7 +92,7 @@ class XXZLoss(LossFn):
 
         return drift
 
-    def denoiser(self, model_output):
+    def denoiser(self, xt, model_output):
         z_hat = model_output[:, [2]]
 
         return z_hat
@@ -99,5 +109,40 @@ class X1ZLoss(LossFn):
 
 
 class XXLoss(LossFn):
-    def __call__(self, x0, x1, z, t, nn_output: torch.Tensor) -> torch.Tensor:
-        raise NotImplementedError()
+    def __call__(self, nn_output, x0, x1, z, t, interp_fn: InterpFn) -> torch.Tensor:
+        target = torch.concat([x0, x1], dim=1)
+
+        return torch.square(nn_output - target)
+
+    def clamp(self, nn_output) -> torch.Tensor:
+        return torch.concat(
+            [torch.clamp(nn_output[:, :2], -1.0, 1.0), nn_output[:, [2]]], dim=1
+        )
+
+    def target_names(self) -> tuple[str, str]:
+        return ("x0", "x1")
+
+    def drift(self, xt, model_output, interp_fn: InterpFn, t: torch.Tensor):
+        x0_hat, x1_hat = (
+            model_output[:, [0]],
+            model_output[:, [1]],
+        )
+
+        z_hat = xt - interp_fn.alpha(t) * x0_hat - interp_fn.beta(t) * x1_hat
+
+        drift = (
+            interp_fn.dalpha(t) * x0_hat
+            + interp_fn.dbeta(t) * x1_hat
+            + interp_fn.dgamma(t) * z_hat
+        )
+
+        return drift
+
+    def denoiser(self, xt, model_output, interp_fn: InterpFn, t: torch.Tensor):
+        x0_hat, x1_hat = (
+            model_output[:, [0]],
+            model_output[:, [1]],
+        )
+        z_hat = xt - interp_fn.alpha(t) * x0_hat - interp_fn.beta(t) * x1_hat
+
+        return z_hat

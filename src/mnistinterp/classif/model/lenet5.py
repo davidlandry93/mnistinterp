@@ -23,16 +23,24 @@ class LeNet5(nn.Module):
         self.relu1 = nn.ReLU()
         self.fc2 = nn.Linear(84, num_classes)
 
-    def forward(self, x):
+    def embed(self, x):
         x = x.unsqueeze(1)  # Add channel dimension.
 
         out = self.layer1(x)
         out = self.layer2(out)
         out = out.reshape(out.size(0), -1)
-        out = self.fc(out)
-        out = self.relu(out)
+        out = self.fc(out) 
+
+        return out
+
+    def classify(self, x):
+        out = self.relu(x)
         out = self.fc1(out)
         out = self.relu1(out)
         out = self.fc2(out)
 
         return F.softmax(out, dim=-1)
+
+    def forward(self, x):
+
+        return self.classify(self.embed(x))

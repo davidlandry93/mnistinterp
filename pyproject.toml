@@ -23,6 +23,7 @@ dev = ["ruff"]
 [project.scripts]
 minterp_train_classif = "mnistinterp.classif.classif_cli:cli"
 minterp_train_interp = "mnistinterp.interp.cli:cli"
+minterp_eval_interp = "mnistinterp.interp.eval_cli:eval_cli"
 
 [tool.setuptools.package-data]
 eddie = ["**/*.yaml", "**/*.gz"]

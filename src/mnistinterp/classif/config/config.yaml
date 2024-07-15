@@ -1,5 +1,5 @@
 defaults: 
-- model: conv
+- model: lenet
 - _self_
 
 batch_size: 128
@@ -15,7 +15,7 @@ mlflow:
 
 lr: 1e-5
 weight_decay: 1e-5
-max_epochs: 100
+max_epochs: 50
 
 
 hydra:

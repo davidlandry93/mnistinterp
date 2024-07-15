@@ -55,6 +55,22 @@ class TrainingState:
         self.step = 0
         self.val_loss_min = float("inf")
 
+    def to_dict(self):
+        return {
+            'epoch': self.epoch,
+            'step': self.step,
+            'val_loss_min': self.val_loss_min,
+            'model': self.model.state_dict(),
+            'optimizer': self.optimizer.state_dict(),
+        }
+
+    def load(self, checkpoint):
+        self.epoch = checkpoint['epoch']
+        self.step = checkpoint['step']
+        self.val_loss_min = checkpoint['val_loss_min']
+
+        self.model.load_state_dict(checkpoint['model'])
+        self.optimizer.load_state_dict(checkpoint['optimizer'])
 
 def train(
     state: TrainingState,
@@ -151,7 +167,7 @@ def validation_loop(state: TrainingState, val_dataloader, device: torch.device):
 
 def save_checkpoint(state: TrainingState, label: str):
     fname = f"{label}.ckpt"
-    torch.save(state, fname)
+    torch.save(state.to_dict(), fname)
     mlflow.log_artifact(fname)
 
 
@@ -204,10 +220,13 @@ def cli(cfg: oc.DictConfig):
         experiment_id=mlflow_experiment.experiment_id, run_name=cfg.mlflow.run_name
     )
 
-    mlflow.log_params(params_dict_for_logging(cfg))
 
     try:
         end_status = "FINISHED"
+
+        mlflow.log_params(params_dict_for_logging(cfg))
+        mlflow.log_artifacts('.hydra')
+
         train(
             state,
             train_dataloader=train_loader,

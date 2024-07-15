@@ -1,2 +1,3 @@
 _target_: mnistinterp.interp.solver.EulerMaruyamaSolver
 epsilon: 1.0
+only_denoise_from: 1.0

@@ -1,9 +1,4 @@
 defaults:
-- model: unet
-- optimizer: adamw
-- scheduler: onecycle
-- interpfn: linear
-- lossfn: xxz
 - solver: euler_maruyama
 - _self_
 
@@ -13,22 +8,20 @@ limit_train_batches:
 limit_val_batches: 
 
 
-lr: 1e-3
+run_id: ???
+classifier_id: e450563e40e14658b71a1d4b9c4f7e21
+
 batch_size: 256
-max_epochs: 50
 
-origin_digit: 3
-destination_digit: 8
-
-n_sampling_steps: 100
+n_sampling_steps: 200
 time_padding: 1e-4
 
-n_steps_per_epoch: 
+limit_generate_batches: 
 
 mlflow:
   tracking_uri: sqlite:///${oc.env:WORK}/mnistinterp/mlflow/db.sqlite
-  experiment_name: mnistinterp
-  run_name: mnistinterp
+  experiment_name: mnistinterp_inference
+  run_name: inference
   artifact_location: ${oc.env:WORK,.}/mnistinterp/mlflow/artifacts
 
 
