@@ -257,7 +257,7 @@ def plot_model_output(
 
     model_output = model_output[:N_SAMPLE_MODEL_OUTPUT_PLOT]
 
-    n_cols = 3 + loss_fn.n_targets
+    n_cols = 4 + loss_fn.n_targets
 
     fig, axs = plt.subplots(
         N_SAMPLE_MODEL_OUTPUT_PLOT, n_cols, sharex=True, sharey=True
@@ -282,8 +282,20 @@ def plot_model_output(
         for j in range(loss_fn.n_targets):
             axs[i, j + 3].imshow(model_output[i, j].cpu().numpy())
 
+    # Plot best estimate.
+    best_estimate = loss_fn.best_estimate(
+        xt[:N_SAMPLE_MODEL_OUTPUT_PLOT],
+        model_output,
+        interp_fn,
+        t[:N_SAMPLE_MODEL_OUTPUT_PLOT],
+    )
+    for i in range(N_SAMPLE_MODEL_OUTPUT_PLOT):
+        axs[i, -1].imshow(best_estimate[i, 0].cpu().numpy(), vmin=-1.0, vmax=1.0)
+
     for i, label in enumerate(loss_fn.target_names()):
         axs[0, i + 3].set_title(label)
+
+    axs[0, -1].set_title("Best Estimate")
 
     # Remove all tick labels.
     axs[0, 0].set_xticks([])

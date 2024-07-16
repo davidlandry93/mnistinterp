@@ -59,7 +59,7 @@ class EulerMaruyamaSolver(Solver):
             xt = history[i]
             model_output = loss_fn.clamp(model(xt, t))
             drift = loss_fn.drift(xt, model_output, interp_fn, t)
-            noise = loss_fn.denoiser(xt, model_output)
+            noise = loss_fn.denoiser(xt, model_output, interp_fn, t)
 
             epsilon_t = torch.tensor(self.epsilon_fn(t))
 
@@ -108,7 +108,7 @@ class HeunMaruyamaSolver(Solver):
             xt = history[i]
             model_output = model(xt, t)
             drift = loss_fn.drift(xt, model_output, interp_fn, t)
-            noise = loss_fn.denoiser(xt, model_output)
+            noise = loss_fn.denoiser(xt, model_output, interp_fn, t)
 
             epsilon_t = torch.tensor(self.epsilon_fn(t))
 
@@ -127,7 +127,9 @@ class HeunMaruyamaSolver(Solver):
 
                 model_output_prime = model(xt_prime, t + dt)
                 drift_prime = loss_fn.drift(xt, model_output_prime, interp_fn, t + dt)
-                noise_prime = loss_fn.denoiser(xt, model_output_prime)
+                noise_prime = loss_fn.denoiser(
+                    xt, model_output_prime, interp_fn, t + dt
+                )
 
                 dx_prime = drift_prime - (
                     epsilon_t_prime / interp_fn.gamma(t + dt) * noise_prime
