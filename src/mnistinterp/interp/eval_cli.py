@@ -13,6 +13,7 @@ import torch.utils.data
 import pathlib
 from ..dataset import MNISTDataset
 
+from .lossfn import LossFn
 from .interpfn import InterpFn
 from .solver import Solver
 
@@ -76,7 +77,7 @@ def eval_cli(cfg: oc.DictConfig):
         # TEMPORARY FIX
         run_cfg["n_steps_per_epoch"] = 1
 
-        loss_fn = hydra.utils.call(run_cfg.lossfn)
+        loss_fn: LossFn = hydra.utils.call(run_cfg.lossfn)
         model = load_model_from_id(cfg.run_id, out_channels=loss_fn.n_targets)
         classifier = load_model_from_id(cfg.classifier_id)
 
@@ -134,8 +135,9 @@ def eval_cli(cfg: oc.DictConfig):
                 / descriptors.shape[0]
             )
 
+            x0s = []
             generated = []
-            generated_x1 = []
+            best_estimates = []
             path_lengths = []
             n_samples = []
             for batch in tqdm.tqdm(
@@ -152,8 +154,13 @@ def eval_cli(cfg: oc.DictConfig):
                     model, interp_fn, loss_fn, x0, ts
                 )
 
+                last_x = history_x[-1]
+                best_estimate = loss_fn.best_estimate(
+                    last_x, model_output[-1], interp_fn, ts[-1]
+                )
+
                 generated.append(history_x[-1])
-                generated_x1.append(model_output[-1][:, 1])
+                best_estimates.append(best_estimate)
 
                 history_x_torch = torch.stack(history_x, dim=0)
                 history_dx = history_x_torch[1:] - history_x_torch[:-1]
@@ -161,6 +168,7 @@ def eval_cli(cfg: oc.DictConfig):
                 path_length = torch.abs(history_dx).sum(dim=[0, 2, 3, 4]).mean()
                 path_lengths.append(path_length)
                 n_samples.append(x0.shape[0])
+                x0s.append(x0)
 
             path_lengths = torch.tensor(path_lengths)
             n_samples = torch.tensor(n_samples)
@@ -168,14 +176,15 @@ def eval_cli(cfg: oc.DictConfig):
             mlflow.log_metric("PathLength", path_length.item())
 
             generated = torch.concat(generated, dim=0)
-            generated_x1 = torch.concat(generated_x1, dim=0)
+            best_estimates = torch.concat(best_estimates, dim=0)
+            x0 = torch.concat(x0s, dim=0)
 
             plot_generated_grid(generated.cpu().numpy())
-            plot_generated_grid(generated_x1.cpu().numpy(), label="x1")
-            plot_generated_compare_grid(x0.cpu().numpy(), generated_x1.cpu().numpy())
+            plot_generated_grid(best_estimates.cpu().numpy(), label="x1")
+            plot_generated_compare_grid(x0.cpu().numpy(), best_estimates.cpu().numpy())
 
             ## Generate descriptors for generated.
-            gen_descriptors = classifier.embed(generated_x1.squeeze())
+            gen_descriptors = classifier.embed(best_estimates.squeeze())
             gen_mu = gen_descriptors.mean(dim=0)
             gen_cov = (
                 torch.matmul((gen_descriptors - gen_mu).T, (gen_descriptors - gen_mu))
@@ -197,7 +206,7 @@ def eval_cli(cfg: oc.DictConfig):
             logger.info("FID: %s", fid.item())
             mlflow.log_metric("FID", fid.item())
 
-            mean_distance = torch.abs(x0 - generated_x1).sum(dim=[2, 3]).mean()
+            mean_distance = torch.abs(x0 - best_estimates).sum(dim=[2, 3]).mean()
             mlflow.log_metric("SampleDistance", mean_distance.item())
 
             gen_classifs = torch.bincount(
@@ -225,9 +234,15 @@ def eval_cli(cfg: oc.DictConfig):
             history_x, model_output = solver.solve(model, interp_fn, loss_fn, x0, ts)
             generated_x1 = model_output[-1][:, 1]
             generated_x1[0] = x0[0]
-            plot_generated_grid(
-                generated_x1.cpu().numpy(), label="x1_same_origin", shuffle=False
+
+            best_estimate = (
+                loss_fn.best_estimate(
+                    history_x[-1], model_output[-1], interp_fn, ts[-1]
+                )
+                .cpu()
+                .numpy()
             )
+            plot_generated_grid(best_estimate, label="x1_same_origin", shuffle=False)
     finally:
         mlflow.end_run()
 
@@ -247,7 +262,7 @@ def plot_generated_grid(generated: np.ndarray, label="generated", shuffle=True):
     for i, img in enumerate(subset):
         ax = axs[i // width, i % width]
 
-        ax.imshow(img, cmap="gray_r")
+        ax.imshow(img, cmap="gray_r", vmin=0, vmax=1)
         ax.axis("off")
 
     fig.subplots_adjust(wspace=0, hspace=0)

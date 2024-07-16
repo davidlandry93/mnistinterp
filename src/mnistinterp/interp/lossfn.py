@@ -187,7 +187,7 @@ class XXZLoss(LossFn):
         return z_hat
 
     def best_estimate(self, xt, model_output, interp_fn: InterpFn, t: torch.Tensor):
-        return model_output[:, 1]
+        return model_output[:, [1]]
 
 
 class X0ZLoss(LossFn):
@@ -196,8 +196,41 @@ class X0ZLoss(LossFn):
 
 
 class X1ZLoss(LossFn):
-    def __call__(self, x0, x1, z, t, nn_output: torch.Tensor) -> torch.Tensor:
-        raise NotImplementedError()
+    def __call__(self, nn_output, x0, x1, z, t, interp_fn: InterpFn) -> torch.Tensor:
+        target = torch.concat([x1, z], dim=1)
+
+        return torch.square(nn_output - target)
+
+    def clamp(self, nn_output) -> torch.Tensor:
+        return torch.stack(
+            [torch.clamp(nn_output[:, 0], -1.0, 1.0), nn_output[:, 1]], dim=1
+        )
+
+    def target_names(self) -> tuple[str, str]:
+        return ("x1", "z")
+
+    def drift(self, xt, model_output, interp_fn: InterpFn, t: torch.Tensor):
+        z_hat = model_output[:, [1]]
+        x1_hat = model_output[:, [0]]
+
+        gamma = interp_fn.gamma(t).reshape(-1, 1, 1, 1)
+        alpha = interp_fn.alpha(t).reshape(-1, 1, 1, 1)
+        beta = interp_fn.beta(t).reshape(-1, 1, 1, 1)
+        x0_hat = (xt - beta * x1_hat - gamma * z_hat) / alpha
+
+        drift = (
+            interp_fn.dalpha(t) * x0_hat
+            + interp_fn.dbeta(t) * x1_hat
+            + interp_fn.dgamma(t) * z_hat
+        )
+
+        return drift
+
+    def denoiser(self, xt, model_output, interp_fn: InterpFn, t: torch.Tensor):
+        return model_output[:, [1]]
+
+    def best_estimate(self, xt, model_output, interp_fn: InterpFn, t: torch.Tensor):
+        return model_output[:, [0]]
 
 
 class XXLoss(LossFn):
@@ -218,7 +251,8 @@ class XXLoss(LossFn):
             model_output[:, [1]],
         )
 
-        z_hat = xt - interp_fn.alpha(t) * x0_hat - interp_fn.beta(t) * x1_hat
+        gamma = interp_fn.gamma(t).reshape(-1, 1, 1, 1)
+        z_hat = (xt - interp_fn.alpha(t) * x0_hat - interp_fn.beta(t) * x1_hat) / gamma
 
         drift = (
             interp_fn.dalpha(t) * x0_hat
@@ -233,7 +267,8 @@ class XXLoss(LossFn):
             model_output[:, [0]],
             model_output[:, [1]],
         )
-        z_hat = xt - interp_fn.alpha(t) * x0_hat - interp_fn.beta(t) * x1_hat
+        gamma = interp_fn.gamma(t).reshape(-1, 1, 1, 1)
+        z_hat = (xt - interp_fn.alpha(t) * x0_hat - interp_fn.beta(t) * x1_hat) / gamma
 
         return z_hat
 

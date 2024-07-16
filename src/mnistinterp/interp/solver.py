@@ -65,6 +65,9 @@ class EulerMaruyamaSolver(Solver):
 
             if t > self.only_denoise_from:
                 delta = -noise * dt
+            elif i == len(steps) - 1:
+                # Last step.
+                delta = drift * dt - (epsilon_t / interp_fn.gamma(t)) * noise
             else:
                 delta = (
                     drift * dt

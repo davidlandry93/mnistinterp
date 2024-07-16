@@ -223,6 +223,8 @@ def validation_loop(
         mean_loss = mean_loss_per_channel.mean()
         mlflow.log_metric("Val/loss", mean_loss.item(), step=state.step)
 
+        save_checkpoint(state, label="checkpoint_{:03}".format(state.epoch))
+
         if mean_loss_per_channel.mean() < state.val_loss_min:
             state.val_loss_min = mean_loss_per_channel.mean().item()
             save_checkpoint(state, label="best")
